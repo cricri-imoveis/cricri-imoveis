@@ -16,7 +16,7 @@ type Resumo = {
 };
 
 type Avaliacao = {
-  id: string; criado_em: string; tipo_morador: string | null; comentario: string | null;
+  id: string; criado_em: string; autor_id: string; tipo_morador: string | null; comentario: string | null;
   nota_conservacao: number; nota_vizinhanca: number; nota_relacao: number;
   nota_seguranca: number; nota_custo: number;
 };
@@ -49,12 +49,12 @@ export default function ImovelPage() {
       if (uid) {
         const { data: acesso } = await supabase
           .from("acessos").select("id").eq("imovel_id", id).eq("user_id", uid).maybeSingle();
-        if (acesso) {
-          setLiberado(true);
-          const { data: avs } = await supabase
-            .from("avaliacoes").select("*").eq("imovel_id", id).order("criado_em", { ascending: false });
-          setAvaliacoes((avs as Avaliacao[]) ?? []);
-        }
+        setLiberado(!!acesso);
+        // As regras de seguranca (RLS) retornam as avaliacoes do proprio autor sempre,
+        // e todas as avaliacoes quando o usuario tem acesso pago a este imovel.
+        const { data: avs } = await supabase
+          .from("avaliacoes").select("*").eq("imovel_id", id).order("criado_em", { ascending: false });
+        setAvaliacoes((avs as Avaliacao[]) ?? []);
       }
       setCarregando(false);
     }
@@ -121,30 +121,9 @@ export default function ImovelPage() {
           )}
         </div>
 
-        {/* Conteudo detalhado: pago */}
-        {resumo.qtd_avaliacoes > 0 && !liberado && (
-          <div style={{ background: cores.escuro, color: cores.fundo, borderRadius: 14, padding: "28px 24px", textAlign: "center" }}>
-            <p style={{ fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", color: cores.dourado, marginBottom: 10 }}>
-              Conteudo exclusivo
-            </p>
-            <h2 style={{ fontFamily: serif, fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
-              Veja o que os ex-moradores escreveram
-            </h2>
-            <p style={{ color: "rgba(240,237,230,0.75)", fontSize: 14, lineHeight: 1.6, marginBottom: 20, maxWidth: 420, marginInline: "auto" }}>
-              Notas por categoria (conservacao, vizinhanca, seguranca e mais) e os comentarios completos de quem morou aqui.
-            </p>
-            <button
-              onClick={liberar}
-              style={{ background: cores.dourado, color: cores.escuro, border: "none", padding: "13px 28px", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: "pointer" }}
-            >
-              Liberar por R$ {PRECO_POR_IMOVEL.toFixed(2).replace(".", ",")}
-            </button>
-          </div>
-        )}
-
-        {/* Avaliacoes liberadas */}
-        {liberado && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* Avaliacoes que o usuario pode ver: as proprias sempre; todas quando liberado */}
+        {avaliacoes.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 24 }}>
             {avaliacoes.map((a) => (
               <div key={a.id} style={{ background: cores.branco, border: `1px solid ${cores.borda}`, borderRadius: 14, padding: "20px 22px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -171,6 +150,27 @@ export default function ImovelPage() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Conteudo ainda bloqueado: existem avaliacoes de outras pessoas nao liberadas */}
+        {!liberado && resumo.qtd_avaliacoes > avaliacoes.length && (
+          <div style={{ background: cores.escuro, color: cores.fundo, borderRadius: 14, padding: "28px 24px", textAlign: "center" }}>
+            <p style={{ fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", color: cores.dourado, marginBottom: 10 }}>
+              Conteudo exclusivo
+            </p>
+            <h2 style={{ fontFamily: serif, fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
+              {avaliacoes.length > 0 ? "Veja as avaliacoes dos outros ex-moradores" : "Veja o que os ex-moradores escreveram"}
+            </h2>
+            <p style={{ color: "rgba(240,237,230,0.75)", fontSize: 14, lineHeight: 1.6, marginBottom: 20, maxWidth: 420, marginInline: "auto" }}>
+              Notas por categoria (conservacao, vizinhanca, seguranca e mais) e os comentarios completos de quem morou aqui.
+            </p>
+            <button
+              onClick={liberar}
+              style={{ background: cores.dourado, color: cores.escuro, border: "none", padding: "13px 28px", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: "pointer" }}
+            >
+              Liberar por R$ {PRECO_POR_IMOVEL.toFixed(2).replace(".", ",")}
+            </button>
           </div>
         )}
       </section>
